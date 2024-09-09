@@ -1,0 +1,82 @@
+services:
+
+  mc-server:
+    image: itzg/minecraft-server
+    ports:
+      - 25565:25565
+    environment:
+      EULA: "TRUE"
+      TYPE: "VANILLA"
+      VERSION: "LATEST"
+      MAX_PLAYERS: 10
+      ANNOUNCE_PLAYER_ACHIEVEMENTS: "TRUE"
+      DIFFICULTY: "HARD"
+      ENABLE_JMX: "TRUE"  # JMX for monitoring
+      JMX_HOST: "0.0.0.0"
+      JMX_PORT: 9010
+      MEMORY: "10G"
+      ONLINE_MODE: "FALSE"  # Allow or pirate players
+      ENABLE_RCON: "TRUE"
+      RCON_HOST: "minecraft"
+      RCON_PORT: 25575
+      RCON_PASSWORD: "minecraft"
+    tty: true
+    stdin_open: true
+    restart: unless-stopped
+    volumes:
+      # attach a directory relative to the directory containing this compose file
+      - ./minecraft-data:/data
+    networks:
+      - minecraft-network
+    security_opt:
+      - no-new-privileges:true
+    user: "1000:1000"
+
+
+  mc-exporter:
+    image: itzg/mc-monitor:latest
+    container_name: mc-exporter
+    environment:
+      ENABLE_RCON: "TRUE"
+      RCON_HOST: "minecraft"
+      RCON_PORT: 25575
+      RCON_PASSWORD: "minecraft"
+    ports:
+      - "9150:9150" # for Prometeus metrics
+    command: export-for-prometheus
+    depends_on:
+      - mc-server
+    networks:
+      - minecraft-network
+
+  prometheus:
+    image: prom/prometheus
+    container_name: prometheus
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    ports:
+      - "9090:9090"
+    networks:
+      - minecraft-network
+
+
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3000:3000"  # prot for access to Grafana interface
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    depends_on:
+      - prometheus
+    networks:
+      - minecraft-network
+
+  
+networks:
+  minecraft-network:
+    driver: bridge
+
+volumes:
+  grafana-storage:
+      
